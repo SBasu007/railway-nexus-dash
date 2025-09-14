@@ -2,41 +2,70 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Definition of the design system. All colors, gradients, fonts, etc should be defined here. 
-All colors MUST be HSL.
-*/
+/* Railway Traffic Management Dashboard Design System */
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
+    /* Railway Control Room Theme - Dark Professional */
+    --background: 220 27% 8%;
+    --foreground: 210 20% 92%;
 
-    --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
+    --card: 220 25% 10%;
+    --card-foreground: 210 20% 92%;
 
-    --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
+    --popover: 220 25% 12%;
+    --popover-foreground: 210 20% 92%;
 
-    --primary: 222.2 47.4% 11.2%;
-    --primary-foreground: 210 40% 98%;
+    /* Railway Blue Primary */
+    --primary: 214 84% 56%;
+    --primary-foreground: 220 27% 8%;
+    --primary-glow: 214 84% 66%;
 
-    --secondary: 210 40% 96.1%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
+    /* Operational Secondary */
+    --secondary: 220 25% 14%;
+    --secondary-foreground: 210 20% 92%;
 
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
+    --muted: 220 25% 16%;
+    --muted-foreground: 215 15% 65%;
 
-    --accent: 210 40% 96.1%;
-    --accent-foreground: 222.2 47.4% 11.2%;
+    --accent: 220 25% 18%;
+    --accent-foreground: 210 20% 92%;
 
-    --destructive: 0 84.2% 60.2%;
+    /* Alert Colors */
+    --destructive: 0 84% 60%;
     --destructive-foreground: 210 40% 98%;
+    
+    --warning: 43 89% 58%;
+    --warning-foreground: 220 27% 8%;
+    
+    --success: 142 71% 45%;
+    --success-foreground: 210 40% 98%;
 
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 222.2 84% 4.9%;
+    --border: 220 25% 20%;
+    --input: 220 25% 16%;
+    --ring: 214 84% 56%;
 
-    --radius: 0.5rem;
+    --radius: 0.75rem;
+
+    /* Control Room Gradients */
+    --gradient-primary: linear-gradient(135deg, hsl(214 84% 56%), hsl(214 84% 66%));
+    --gradient-dark: linear-gradient(180deg, hsl(220 25% 12%), hsl(220 27% 8%));
+    --gradient-surface: linear-gradient(135deg, hsl(220 25% 10%), hsl(220 25% 14%));
+    
+    /* Railway Status Colors */
+    --status-operational: 142 71% 45%;
+    --status-delayed: 43 89% 58%;
+    --status-critical: 0 84% 60%;
+    --status-maintenance: 262 83% 58%;
+
+    /* Shadows & Effects */
+    --shadow-control: 0 10px 30px -5px hsl(220 27% 4% / 0.4);
+    --shadow-glow: 0 0 20px hsl(214 84% 56% / 0.3);
+    --shadow-surface: 0 4px 20px -2px hsl(220 27% 4% / 0.3);
+
+    /* Transitions */
+    --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    --transition-fast: all 0.15s ease-out;
 
     --sidebar-background: 0 0% 98%;
 
@@ -100,6 +129,57 @@ All colors MUST be HSL.
   }
 
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground font-sans;
+  }
+}
+
+/* Railway Dashboard Custom Classes */
+@layer components {
+  .control-panel {
+    @apply bg-gradient-to-br from-card to-secondary border border-border rounded-xl shadow-lg backdrop-blur-sm;
+  }
+  
+  .status-indicator {
+    @apply w-3 h-3 rounded-full animate-pulse;
+  }
+  
+  .status-operational {
+    @apply bg-green-500;
+  }
+  
+  .status-delayed {
+    @apply bg-yellow-500;
+  }
+  
+  .status-critical {
+    @apply bg-red-500;
+  }
+  
+  .status-maintenance {
+    @apply bg-purple-500;
+  }
+  
+  .railway-btn {
+    @apply px-4 py-2 rounded-lg font-medium transition-all duration-200 hover:scale-105 active:scale-95;
+  }
+  
+  .railway-btn-primary {
+    @apply railway-btn bg-gradient-to-r from-primary to-primary/90 text-primary-foreground hover:shadow-lg hover:shadow-primary/25;
+  }
+  
+  .railway-btn-secondary {
+    @apply railway-btn bg-secondary text-secondary-foreground hover:bg-secondary/80;
+  }
+  
+  .railway-btn-success {
+    @apply railway-btn bg-green-600 text-white hover:bg-green-700;
+  }
+  
+  .railway-btn-warning {
+    @apply railway-btn bg-yellow-600 text-yellow-50 hover:bg-yellow-700;
+  }
+  
+  .railway-btn-danger {
+    @apply railway-btn bg-red-600 text-white hover:bg-red-700;
   }
 }
