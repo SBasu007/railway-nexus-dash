@@ -4,11 +4,24 @@ Provides load_from_mongo() returning a structured dict used by the optimizer.
 """
 from pymongo import MongoClient
 from datetime import datetime, timezone
+from typing import Optional
 import math
 from app.core.config import settings
 
 
-def load_from_mongo(mongo_uri=None, dbname=None):
+def _normalize_window(start, end):
+    """Ensure datetimes are timezone-aware (UTC) and ordered."""
+    if start and start.tzinfo is None:
+        start = start.replace(tzinfo=timezone.utc)
+    if end and end.tzinfo is None:
+        end = end.replace(tzinfo=timezone.utc)
+    if start and end and end < start:
+        # swap to be safe
+        start, end = end, start
+    return start, end
+
+
+def load_from_mongo(mongo_uri=None, dbname=None, start: Optional[datetime] = None, end: Optional[datetime] = None):
     """Load data from MongoDB and normalize into structures the optimizer expects.
 
     Returns a dict:
@@ -27,16 +40,40 @@ def load_from_mongo(mongo_uri=None, dbname=None):
     client = MongoClient(mongo_uri)
     db = client[dbname]
 
+    # Normalize window params
+    start, end = _normalize_window(start, end)
+
     trains_coll = list(db.trains.find({}))
     stations_coll = {s['_id']: s for s in db.stations.find({})}
     segments_coll = {seg['_id']: seg for seg in db.segments.find({})}
-    train_events = list(db.train_events.find({}))
+    # Apply time window filter to train events if provided
+    ev_query = {}
+    if start and end:
+        ev_query["scheduled_time"] = {"$gte": start, "$lte": end}
+    elif start:
+        ev_query["scheduled_time"] = {"$gte": start}
+    elif end:
+        ev_query["scheduled_time"] = {"$lte": end}
+    train_events = list(db.train_events.find(ev_query))
     constraints = list(db.constraints.find({}))
-    platform_occ = list(db.platform_occupancy.find({}))
+    # Platform occupancy: include records that overlap the window
+    occ_query = {}
+    if start or end:
+        # overlap condition: start_time <= end AND end_time >= start
+        conds = []
+        if end:
+            conds.append({"start_time": {"$lte": end}})
+        if start:
+            conds.append({"end_time": {"$gte": start}})
+        if conds:
+            occ_query = {"$and": conds}
+    platform_occ = list(db.platform_occupancy.find(occ_query))
 
     # Determine origin time (earliest scheduled_time in train_events)
     times = [ev['scheduled_time'] for ev in train_events if 'scheduled_time' in ev]
-    if times:
+    if start:
+        origin = start
+    elif times:
         origin = min(times)
     else:
         origin = datetime.now(timezone.utc)
@@ -91,13 +128,21 @@ def load_from_mongo(mongo_uri=None, dbname=None):
     }
 
 
-def load_scenario_data(scenario_id, mongo_uri=None, dbname=None):
+def load_scenario_data(
+    scenario_id,
+    mongo_uri=None,
+    dbname=None,
+    start: Optional[datetime] = None,
+    end: Optional[datetime] = None
+):
     """Load data specific to a scenario"""
     mongo_uri = mongo_uri or settings.MONGO_URI
     dbname = dbname or settings.MONGO_DB
     
     client = MongoClient(mongo_uri)
     db = client[dbname]
+    # Normalize window params
+    start, end = _normalize_window(start, end)
     
     # Get scenario document
     scenario = db.scenarios.find_one({"_id": scenario_id})
@@ -120,18 +165,35 @@ def load_scenario_data(scenario_id, mongo_uri=None, dbname=None):
     stations_coll = {s['_id']: s for s in db.stations.find({"_id": {"$in": list(station_ids)}})}
     
     # Get train events for these trains
-    train_events = list(db.train_events.find({"train_id": {"$in": train_ids}}))
+    ev_query = {"train_id": {"$in": train_ids}}
+    if start and end:
+        ev_query["scheduled_time"] = {"$gte": start, "$lte": end}
+    elif start:
+        ev_query["scheduled_time"] = {"$gte": start}
+    elif end:
+        ev_query["scheduled_time"] = {"$lte": end}
+    train_events = list(db.train_events.find(ev_query))
     
     # Get constraints of types in scenario's constraints list
     constraint_types = scenario.get('constraints', [])
     constraints = list(db.constraints.find({"type": {"$in": constraint_types}}))
     
     # Get platform occupancy for these trains
-    platform_occ = list(db.platform_occupancy.find({"train_id": {"$in": train_ids}}))
+    occ_query = {"train_id": {"$in": train_ids}}
+    if start or end:
+        and_conds = [occ_query]
+        if end:
+            and_conds.append({"start_time": {"$lte": end}})
+        if start:
+            and_conds.append({"end_time": {"$gte": start}})
+        occ_query = {"$and": and_conds}
+    platform_occ = list(db.platform_occupancy.find(occ_query))
     
     # Rest of processing is same as load_from_mongo
     times = [ev['scheduled_time'] for ev in train_events if 'scheduled_time' in ev]
-    if times:
+    if start:
+        origin = start
+    elif times:
         origin = min(times)
     else:
         origin = datetime.now(timezone.utc)

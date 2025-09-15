@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException, status
 from typing import Optional
-from app.db.mongodb import stations_collection
+from app.db import mongodb as mongo
 from app.models.stations import Station, StationResponse, StationList, Platform
 
 router = APIRouter()
@@ -17,8 +17,8 @@ async def get_stations(
     if name:
         query["name"] = {"$regex": name, "$options": "i"}  # Case-insensitive search
         
-    total = await stations_collection.count_documents(query)
-    cursor = stations_collection.find(query).skip(skip).limit(limit)
+    total = await mongo.stations_collection.count_documents(query)
+    cursor = mongo.stations_collection.find(query).skip(skip).limit(limit)
     stations = await cursor.to_list(length=limit)
     
     return StationList(
@@ -30,7 +30,7 @@ async def get_stations(
 @router.get("/{station_id}", response_model=StationResponse)
 async def get_station(station_id: str):
     """Get a specific station by ID"""
-    station = await stations_collection.find_one({"_id": station_id})
+    station = await mongo.stations_collection.find_one({"_id": station_id})
     if not station:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -45,7 +45,7 @@ async def create_station(station: Station):
     """Create a new station"""
     # Check if station with this ID already exists
     if station._id:
-        existing = await stations_collection.find_one({"_id": station._id})
+        existing = await mongo.stations_collection.find_one({"_id": station._id})
         if existing:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -53,7 +53,7 @@ async def create_station(station: Station):
             )
     
     station_dict = station.model_dump(by_alias=True)
-    result = await stations_collection.insert_one(station_dict)
+    result = await mongo.stations_collection.insert_one(station_dict)
     
     # If _id wasn't provided, use the generated ObjectId
     if not station._id:
@@ -65,7 +65,7 @@ async def create_station(station: Station):
 @router.put("/{station_id}", response_model=StationResponse)
 async def update_station(station_id: str, station_update: Station):
     """Update an existing station"""
-    existing = await stations_collection.find_one({"_id": station_id})
+    existing = await mongo.stations_collection.find_one({"_id": station_id})
     if not existing:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -77,16 +77,16 @@ async def update_station(station_id: str, station_update: Station):
     if "_id" in update_data:
         del update_data["_id"]
     
-    await stations_collection.update_one({"_id": station_id}, {"$set": update_data})
+    await mongo.stations_collection.update_one({"_id": station_id}, {"$set": update_data})
     
-    updated_station = await stations_collection.find_one({"_id": station_id})
+    updated_station = await mongo.stations_collection.find_one({"_id": station_id})
     return StationResponse.from_mongo(updated_station)
 
 
 @router.delete("/{station_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_station(station_id: str):
     """Delete a station"""
-    result = await stations_collection.delete_one({"_id": station_id})
+    result = await mongo.stations_collection.delete_one({"_id": station_id})
     
     if result.deleted_count == 0:
         raise HTTPException(
@@ -100,7 +100,7 @@ async def delete_station(station_id: str):
 @router.post("/{station_id}/platforms", response_model=StationResponse)
 async def add_platform(station_id: str, platform: Platform):
     """Add a platform to a station"""
-    station = await stations_collection.find_one({"_id": station_id})
+    station = await mongo.stations_collection.find_one({"_id": station_id})
     if not station:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -119,7 +119,7 @@ async def add_platform(station_id: str, platform: Platform):
         )
     
     # Add the platform and increment total_platforms
-    await stations_collection.update_one(
+    await mongo.stations_collection.update_one(
         {"_id": station_id},
         {
             "$push": {"platforms": platform.model_dump(by_alias=True)},
@@ -127,5 +127,5 @@ async def add_platform(station_id: str, platform: Platform):
         }
     )
     
-    updated_station = await stations_collection.find_one({"_id": station_id})
+    updated_station = await mongo.stations_collection.find_one({"_id": station_id})
     return StationResponse.from_mongo(updated_station)

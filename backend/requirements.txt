@@ -1,8 +1,8 @@
 fastapi==0.116.1
 uvicorn[standard]==0.22.0
 python-dotenv==1.0.0
-motor==4.4.0           # async MongoDB driver
-pymongo==4.5.1         # sync driver (for optimizer if needed)
+motor>=3.3,<4.0        # async MongoDB driver (compatible with PyMongo 4.x)
+pymongo>=4.4,<5.0      # sync driver (for optimizer if needed)
 pydantic==2.11.9
 pydantic-settings==2.3.4
-ortools==9.10.4067
+ortools==9.9.3963

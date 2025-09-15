@@ -10,8 +10,8 @@ class TimetableEvent(BaseModel):
     station_id: str
     platform_id: Optional[str] = None
     scheduled_time: datetime
-    earliness_sec: int
-    lateness_sec: int
+    earliness_sec: Optional[int] = 0
+    lateness_sec: Optional[int] = 0
     min_dwell_sec: Optional[int] = None
     dwell_time_sec: Optional[int] = None
 
@@ -89,8 +89,8 @@ class TrainEvent(BaseModel):
     station_id: str
     platform_id: Optional[str] = None
     scheduled_time: datetime
-    earliness_sec: int
-    lateness_sec: int
+    earliness_sec: Optional[int] = 0
+    lateness_sec: Optional[int] = 0
     min_dwell_sec: Optional[int] = None
     dwell_time_sec: Optional[int] = None
     
