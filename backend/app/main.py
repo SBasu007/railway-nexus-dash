@@ -1,67 +1,91 @@
-from fastapi import FastAPI, Depends, HTTPException
+# app/main.py
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-import uvicorn
 import os
-from typing import List
 from dotenv import load_dotenv
-from app.db.mongodb import get_db
-from app.api.routes.trains import router as trains_router
-from app.api.routes.stations import router as stations_router
-from app.api.routes.segments import router as segments_router
-from app.api.routes.timetable import router as timetable_router
-from app.api.routes.scenarios import router as scenarios_router
+import logging
 
-# Load environment variables
+# Load .env
 load_dotenv()
 
-## No SQLAlchemy table creation needed; using MongoDB
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger("railway-nexus")
 
-# Initialize FastAPI app
-app = FastAPI(
-    title="Railway Nexus Dashboard API",
-    description="Backend API for Railway Nexus Dashboard",
-    version="1.0.0"
-)
+app = FastAPI(title="Railway Nexus Dashboard API", version="0.1.0")
 
-# Configure CORS
-origins = [
-    "http://localhost",
-    "http://localhost:3000",  # React default port
-    "http://localhost:8080",
-]
-
+# CORS (adjust origins for production)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,
+    allow_origins=["*"],  # change to your frontend URL in prod
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Include routers
-app.include_router(trains_router, prefix="/api/trains", tags=["Trains"])
-app.include_router(stations_router, prefix="/api/stations", tags=["Stations"])
-app.include_router(segments_router, prefix="/api/segments", tags=["Segments"])
-app.include_router(timetable_router, prefix="/api/timetable", tags=["Timetable"])
-app.include_router(scenarios_router, prefix="/api/scenarios", tags=["Scenarios"])
+# Import and mount routers safely (so missing/unfinished route files don't crash import)
+try:
+    from app.api.routes.trains import router as trains_router
+    app.include_router(trains_router, prefix="/api/trains", tags=["Trains"])
+except Exception as e:
+    logger.warning("Trains router not available: %s", e)
 
-# Health check endpoint
+try:
+    from app.api.routes.stations import router as stations_router
+    app.include_router(stations_router, prefix="/api/stations", tags=["Stations"])
+except Exception as e:
+    logger.warning("Stations router not available: %s", e)
+
+try:
+    from app.api.routes.segments import router as segments_router
+    app.include_router(segments_router, prefix="/api/segments", tags=["Segments"])
+except Exception as e:
+    logger.warning("Segments router not available: %s", e)
+
+try:
+    from app.api.routes.timetable import router as timetable_router
+    app.include_router(timetable_router, prefix="/api/timetable", tags=["Timetable"])
+except Exception as e:
+    logger.warning("Timetable router not available: %s", e)
+
+try:
+    from app.api.routes.scenarios import router as scenarios_router
+    app.include_router(scenarios_router, prefix="/api/scenarios", tags=["Scenarios"])
+except Exception as e:
+    logger.warning("Scenarios router not available: %s", e)
+
+# DB lifecycle hooks
+from app.db.mongodb import connect_to_mongo, close_mongo_connection
+
+@app.on_event("startup")
+async def on_startup():
+    logger.info("Starting service — connecting to MongoDB...")
+    await connect_to_mongo()
+    logger.info("Startup finished.")
+
+@app.on_event("shutdown")
+async def on_shutdown():
+    logger.info("Shutting down service — closing MongoDB...")
+    await close_mongo_connection()
+    logger.info("Shutdown finished.")
+
+# Basic endpoints
 @app.get("/health", tags=["Health"])
-def health_check():
+async def health_check():
     return {"status": "healthy", "service": "railway-nexus-dashboard"}
 
 @app.get("/", tags=["Root"])
-def read_root():
+async def read_root():
     return {"message": "Welcome to Railway Nexus Dashboard API"}
 
 @app.exception_handler(Exception)
 async def global_exception_handler(request, exc):
-    return JSONResponse(
-        status_code=500,
-        content={"message": f"Internal server error: {str(exc)}"}
-    )
+    # generic fallback for unexpected exceptions
+    return JSONResponse(status_code=500, content={"message": f"Internal server error: {str(exc)}"})
 
+# Run with: uvicorn app.main:app --host 0.0.0.0 --port 8000 (or python -m app.main for reload)
 if __name__ == "__main__":
+    import uvicorn
     port = int(os.getenv("PORT", 8000))
     uvicorn.run("app.main:app", host="0.0.0.0", port=port, reload=True)

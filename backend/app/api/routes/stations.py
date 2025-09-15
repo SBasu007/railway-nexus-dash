@@ -1,6 +1,5 @@
-from fastapi import APIRouter, HTTPException, status, Query
-from typing import List, Optional
-from bson import ObjectId
+from fastapi import APIRouter, HTTPException, status
+from typing import Optional
 from app.db.mongodb import stations_collection
 from app.models.stations import Station, StationResponse, StationList, Platform
 
@@ -53,7 +52,7 @@ async def create_station(station: Station):
                 detail=f"Station with ID {station._id} already exists"
             )
     
-    station_dict = station.dict(by_alias=True)
+    station_dict = station.model_dump(by_alias=True)
     result = await stations_collection.insert_one(station_dict)
     
     # If _id wasn't provided, use the generated ObjectId
@@ -73,7 +72,7 @@ async def update_station(station_id: str, station_update: Station):
             detail=f"Station with ID {station_id} not found"
         )
     
-    update_data = station_update.dict(by_alias=True, exclude_unset=True)
+    update_data = station_update.model_dump(by_alias=True, exclude_unset=True)
     # Ensure _id is not changed
     if "_id" in update_data:
         del update_data["_id"]
@@ -123,7 +122,7 @@ async def add_platform(station_id: str, platform: Platform):
     await stations_collection.update_one(
         {"_id": station_id},
         {
-            "$push": {"platforms": platform.dict()},
+            "$push": {"platforms": platform.model_dump(by_alias=True)},
             "$inc": {"total_platforms": 1}
         }
     )

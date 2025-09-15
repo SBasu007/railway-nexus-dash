@@ -1,129 +1,76 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Query
-from typing import List, Optional
-from sqlalchemy.orm import Session
-from app.db.mongodb import get_db
-from app.models.scenario import Scenario
-from app.schemas.scenario import ScenarioCreate, ScenarioResponse, ScenarioUpdate, ScenarioSimulationResult
-from app.api.deps import get_current_user
-from app.services.scenario_service import ScenarioService
+from fastapi import APIRouter, HTTPException, status
+from typing import Optional
+from app.db.mongodb import scenarios_collection
+from app.models.scenarios import Scenario, ScenarioResponse, ScenarioList
+from app.schemas.scenario import ScenarioCreate, ScenarioResponse as RespSchema, ScenarioUpdate, ScenarioSimulationResult
+from app.optimizer.data_adapter import load_scenario_data
+from app.optimizer.train_dispatch_optimizer import TrainDispatchOptimizer
 
-# Import project-specific dependencies
+router = APIRouter()
 
-router = APIRouter(prefix="/scenarios", tags=["scenarios"])
 
-@router.get("/", response_model=List[ScenarioResponse])
-def get_scenarios(
-    skip: int = 0, 
-    limit: int = 100,
-    station_id: Optional[int] = None,
-    train_id: Optional[int] = None,
-    type: Optional[str] = None,
-    status: Optional[str] = None,
-    db: Session = Depends(get_db),
-    current_user = Depends(get_current_user)
-):
-    """Get all railway scenarios with optional filtering."""
-    return ScenarioService.get_scenarios(
-        db, skip=skip, limit=limit,
-        station_id=station_id, train_id=train_id,
-        type=type, status=status
-    )
+@router.get("/", response_model=ScenarioList)
+async def list_scenarios(skip: int = 0, limit: int = 100):
+    total = await scenarios_collection.count_documents({})
+    cursor = scenarios_collection.find({}).skip(skip).limit(limit)
+    docs = await cursor.to_list(length=limit)
+    return ScenarioList(scenarios=[ScenarioResponse.from_mongo(d) for d in docs], total=total)
 
-@router.post("/", response_model=ScenarioResponse, status_code=status.HTTP_201_CREATED)
-def create_scenario(
-    scenario: ScenarioCreate, 
-    db: Session = Depends(get_db),
-    current_user = Depends(get_current_user)
-):
-    """Create a new railway simulation scenario."""
-    return ScenarioService.create_scenario(db, scenario=scenario, user_id=current_user.id)
 
 @router.get("/{scenario_id}", response_model=ScenarioResponse)
-def get_scenario(
-    scenario_id: int, 
-    db: Session = Depends(get_db),
-    current_user = Depends(get_current_user)
-):
-    """Get a specific railway scenario by ID."""
-    db_scenario = ScenarioService.get_scenario(db, scenario_id=scenario_id)
-    if db_scenario is None:
-        raise HTTPException(status_code=404, detail="Scenario not found")
-    return db_scenario
+async def get_scenario(scenario_id: str):
+    doc = await scenarios_collection.find_one({"_id": scenario_id})
+    if not doc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Scenario not found")
+    return ScenarioResponse.from_mongo(doc)
+
+
+@router.post("/", response_model=ScenarioResponse, status_code=status.HTTP_201_CREATED)
+async def create_scenario(payload: Scenario):
+    if payload._id:
+        existing = await scenarios_collection.find_one({"_id": payload._id})
+        if existing:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Scenario ID already exists")
+    data = payload.model_dump()
+    result = await scenarios_collection.insert_one(data)
+    if not payload._id:
+        data["_id"] = str(result.inserted_id)
+    return ScenarioResponse.from_mongo(data)
+
 
 @router.put("/{scenario_id}", response_model=ScenarioResponse)
-def update_scenario(
-    scenario_id: int, 
-    scenario: ScenarioUpdate, 
-    db: Session = Depends(get_db),
-    current_user = Depends(get_current_user)
-):
-    """Update a railway scenario."""
-    db_scenario = ScenarioService.get_scenario(db, scenario_id=scenario_id)
-    if db_scenario is None:
-        raise HTTPException(status_code=404, detail="Scenario not found")
-    
-    if db_scenario.user_id != current_user.id and not current_user.is_admin:
-        raise HTTPException(status_code=403, detail="Not enough permissions")
-        
-    return ScenarioService.update_scenario(db, scenario_id=scenario_id, scenario=scenario)
+async def update_scenario(scenario_id: str, payload: Scenario):
+    existing = await scenarios_collection.find_one({"_id": scenario_id})
+    if not existing:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Scenario not found")
+    update = payload.model_dump(exclude_unset=True)
+    if "_id" in update:
+        del update["_id"]
+    await scenarios_collection.update_one({"_id": scenario_id}, {"$set": update})
+    updated = await scenarios_collection.find_one({"_id": scenario_id})
+    return ScenarioResponse.from_mongo(updated)
+
 
 @router.delete("/{scenario_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_scenario(
-    scenario_id: int, 
-    db: Session = Depends(get_db),
-    current_user = Depends(get_current_user)
-):
-    """Delete a railway scenario."""
-    db_scenario = ScenarioService.get_scenario(db, scenario_id=scenario_id)
-    if db_scenario is None:
-        raise HTTPException(status_code=404, detail="Scenario not found")
-        
-    if db_scenario.user_id != current_user.id and not current_user.is_admin:
-        raise HTTPException(status_code=403, detail="Not enough permissions")
-        
-    ScenarioService.delete_scenario(db, scenario_id=scenario_id)
+async def delete_scenario(scenario_id: str):
+    result = await scenarios_collection.delete_one({"_id": scenario_id})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Scenario not found")
     return None
 
+
 @router.post("/{scenario_id}/run", response_model=ScenarioSimulationResult)
-def run_scenario(
-    scenario_id: int, 
-    db: Session = Depends(get_db),
-    current_user = Depends(get_current_user)
-):
-    """Run a railway scenario simulation."""
-    db_scenario = ScenarioService.get_scenario(db, scenario_id=scenario_id)
-    if db_scenario is None:
-        raise HTTPException(status_code=404, detail="Scenario not found")
-    return ScenarioService.run_scenario(db, scenario_id=scenario_id)
+async def run_scenario(scenario_id: str):
+    # Load scenario-specific data synchronously (PyMongo inside adapter)
+    data = load_scenario_data(scenario_id)
+    if not data:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Scenario not found or incomplete")
 
-@router.get("/{scenario_id}/results", response_model=ScenarioSimulationResult)
-def get_scenario_results(
-    scenario_id: int, 
-    db: Session = Depends(get_db),
-    current_user = Depends(get_current_user)
-):
-    """Get results of a previously run railway scenario simulation."""
-    results = ScenarioService.get_scenario_results(db, scenario_id=scenario_id)
-    if results is None:
-        raise HTTPException(status_code=404, detail="Scenario results not found")
-    return results
+    optimizer = TrainDispatchOptimizer(data)
+    optimizer.build_model()
+    feasible = optimizer.solve_model(time_limit=10)
+    if not feasible:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="No feasible solution found")
 
-@router.get("/templates", response_model=List[ScenarioResponse])
-def get_scenario_templates(
-    db: Session = Depends(get_db),
-    current_user = Depends(get_current_user)
-):
-    """Get predefined railway scenario templates."""
-    return ScenarioService.get_scenario_templates(db)
-
-@router.post("/{scenario_id}/duplicate", response_model=ScenarioResponse)
-def duplicate_scenario(
-    scenario_id: int,
-    db: Session = Depends(get_db),
-    current_user = Depends(get_current_user)
-):
-    """Duplicate an existing railway scenario."""
-    original_scenario = ScenarioService.get_scenario(db, scenario_id=scenario_id)
-    if original_scenario is None:
-        raise HTTPException(status_code=404, detail="Scenario not found")
-    return ScenarioService.duplicate_scenario(db, scenario_id=scenario_id, user_id=current_user.id)
+    solution = optimizer.get_solution()
+    return ScenarioSimulationResult(scenario_id=scenario_id, result=solution)

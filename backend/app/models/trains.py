@@ -35,7 +35,7 @@ class TrainResponse(Train):
         train_id = str(train_data.get("_id", "")) if train_data.get("_id") else None
         return cls(
             id=train_id,
-            train_id=train_data.get("train_id"),
+            train_id=train_data.get("train_id") or train_data.get("_id"),
             type=train_data.get("type"),
             priority=train_data.get("priority"),
             avg_speed_kmh=train_data.get("avg_speed_kmh"),

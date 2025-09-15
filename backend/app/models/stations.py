@@ -3,10 +3,15 @@ from typing import Optional, List
 
 
 class Platform(BaseModel):
-    """Platform model"""
-    platform_id: str
+    """Platform model with alias mapping to Mongo _id"""
+    platform_id: str = Field(..., alias="_id")
     length_m: int
     electrified: bool
+
+    model_config = {
+        "populate_by_name": True,
+        "json_encoders": {}
+    }
 
 
 class Station(BaseModel):
@@ -23,8 +28,8 @@ class Station(BaseModel):
                 "name": "Central",
                 "total_platforms": 4,
                 "platforms": [
-                    {"platform_id": "S1P1", "length_m": 250, "electrified": True},
-                    {"platform_id": "S1P2", "length_m": 250, "electrified": True}
+                    {"_id": "S1P1", "length_m": 250, "electrified": True},
+                    {"_id": "S1P2", "length_m": 250, "electrified": True}
                 ]
             }
         }
@@ -46,7 +51,7 @@ class StationResponse(Station):
             _id=station_id,
             name=station_data.get("name"),
             total_platforms=station_data.get("total_platforms"),
-            platforms=[Platform(**p) for p in station_data.get("platforms", [])]
+            platforms=[Platform.model_validate(p) for p in station_data.get("platforms", [])]
         )
 
 
