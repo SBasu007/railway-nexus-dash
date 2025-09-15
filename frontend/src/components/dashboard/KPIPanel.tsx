@@ -1,6 +1,9 @@
+import { useQuery } from '@tanstack/react-query';
 import { Clock, Target, TrendingUp, TrendingDown, Activity, AlertTriangle } from 'lucide-react';
+import apiClient from '../../api/apiClient';
 
-const kpiData = [
+// Static KPI data for fallback when API is not available
+const staticKpiData = [
   {
     label: 'On-Time Performance',
     value: '94.2%',
@@ -35,6 +38,19 @@ const kpiData = [
   }
 ];
 
+// Function to fetch KPI data from the API
+const fetchKPIData = async () => {
+  try {
+    // In a production app, this would be a real API call
+    const response = await apiClient.get('/api/analytics/kpis');
+    return response;
+  } catch (error) {
+    console.error('Failed to fetch KPI data:', error);
+    // Return static data as fallback
+    return staticKpiData;
+  }
+};
+
 const getColorClasses = (color: string) => {
   switch (color) {
     case 'success':
@@ -61,9 +77,20 @@ const getColorClasses = (color: string) => {
 };
 
 export const KPIPanel = () => {
+  // Use React Query to fetch KPI data
+  const { data: kpiData, isLoading, error } = useQuery({
+    queryKey: ['kpis'],
+    queryFn: fetchKPIData,
+    // Keep data fresh for 30 seconds
+    staleTime: 30000,
+  });
+
+  // Use static data as fallback if there's an error, data is loading, or data is undefined
+  const displayData = error || isLoading || !kpiData ? staticKpiData : kpiData;
+
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-      {kpiData.map((kpi, index) => {
+      {displayData.map((kpi, index) => {
         const IconComponent = kpi.icon;
         const colors = getColorClasses(kpi.color);
         

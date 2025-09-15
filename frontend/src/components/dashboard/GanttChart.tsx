@@ -1,5 +1,8 @@
+import { useQuery } from '@tanstack/react-query';
 import { Clock, Train, MapPin } from 'lucide-react';
+import { timetableService } from '../../api';
 
+// Mock data for fallback
 const mockTrains = [
   { id: 'IC-204', platform: 2, arrival: '14:30', departure: '14:35', status: 'on-time', route: 'Main Line' },
   { id: 'RX-156', platform: 3, arrival: '14:33', departure: '14:38', status: 'delayed', route: 'Express' },
@@ -7,6 +10,28 @@ const mockTrains = [
   { id: 'DX-445', platform: 4, arrival: '14:45', departure: '14:50', status: 'early', route: 'Main Line' },
   { id: 'LX-789', platform: 2, arrival: '14:55', departure: '15:00', status: 'on-time', route: 'Express' },
 ];
+
+// Function to fetch timetable data from the API
+const fetchTimetableData = async () => {
+  try {
+    // Get current date in YYYY-MM-DD format
+    const today = new Date().toISOString().split('T')[0];
+    const response = await timetableService.getTimetable({ date: today });
+    
+    // Transform API response to match our component's data structure
+    return response.entries.map(entry => ({
+      id: entry.train_id,
+      platform: entry.platform_id ? parseInt(entry.platform_id.replace('P', '')) : 1,
+      arrival: new Date(entry.arrival_time).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}),
+      departure: new Date(entry.departure_time).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}),
+      status: entry.status.toLowerCase(),
+      route: 'Main Line', // This would come from a join with train data in a real app
+    }));
+  } catch (error) {
+    console.error('Failed to fetch timetable data:', error);
+    return mockTrains;
+  }
+};
 
 const getStatusColor = (status: string) => {
   switch (status) {
@@ -27,6 +52,22 @@ const getStatusText = (status: string) => {
 };
 
 export const GanttChart = () => {
+  // Use React Query to fetch timetable data
+  const { data: trains, isLoading, error } = useQuery({
+    queryKey: ['timetable'],
+    queryFn: fetchTimetableData,
+    // Keep data fresh for 15 seconds
+    staleTime: 15000,
+    // Refresh data every minute
+    refetchInterval: 60000,
+  });
+
+  // Use mock data as fallback if there's an error, data is loading, or data is undefined
+  const displayTrains = error || isLoading || !trains ? mockTrains : trains;
+
+  // Get the current time for display
+  const currentTime = new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+
   return (
     <div className="control-panel p-6 h-full">
       <div className="flex items-center justify-between mb-4">
@@ -35,7 +76,7 @@ export const GanttChart = () => {
           <span>Live Schedule Timeline</span>
         </h3>
         <div className="text-xs text-muted-foreground">
-          Current Time: {new Date().toLocaleTimeString()}
+          Current Time: {currentTime}
         </div>
       </div>
 
@@ -49,7 +90,7 @@ export const GanttChart = () => {
         </div>
 
         {/* Train Schedules */}
-        {mockTrains.map((train) => (
+        {displayTrains.map((train) => (
           <div key={train.id} className="flex items-center py-2 hover:bg-secondary/30 rounded-lg transition-colors">
             <div className="w-20">
               <div className="flex items-center space-x-1">
