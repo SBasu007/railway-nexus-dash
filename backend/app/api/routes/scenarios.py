@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from typing import List, Optional
 from sqlalchemy.orm import Session
-from app.db.session import get_db
+from app.db.mongodb import get_db
 from app.models.scenario import Scenario
 from app.schemas.scenario import ScenarioCreate, ScenarioResponse, ScenarioUpdate, ScenarioSimulationResult
 from app.api.deps import get_current_user

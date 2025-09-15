@@ -17,7 +17,6 @@ scenarios_collection = None
 train_events_collection = None
 platform_occupancy_collection = None
 
-
 async def connect_to_mongo():
     """Create async MongoDB client connection"""
     global motor_client, trains_collection, stations_collection, segments_collection, \
@@ -43,7 +42,6 @@ async def connect_to_mongo():
         logging.error(f"Failed to connect to MongoDB: {e}")
         raise
 
-
 async def close_mongo_connection():
     """Close async MongoDB client connection"""
     global motor_client
@@ -51,10 +49,16 @@ async def close_mongo_connection():
         motor_client.close()
         logging.info("Closed MongoDB connection")
 
-
 def get_sync_client():
     """Get synchronous MongoDB client for optimization"""
     global pymongo_client
     if not pymongo_client:
         pymongo_client = MongoClient(settings.MONGO_URI)
     return pymongo_client
+
+def get_db():
+    """Return the async MongoDB client instance."""
+    global motor_client
+    if not motor_client:
+        raise RuntimeError("MongoDB client is not connected. Call connect_to_mongo() first.")
+    return motor_client

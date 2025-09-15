@@ -1,24 +1,21 @@
 from fastapi import FastAPI, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from sqlalchemy.orm import Session
 import uvicorn
 import os
 from typing import List
 from dotenv import load_dotenv
-from app.database.database import get_db, engine
-from app.database import models
-from app.routers import auth, users, trains, schedules, analytics
-
-# Import database connection
-
-# Import routers
+from app.db.mongodb import get_db
+from app.api.routes.trains import router as trains_router
+from app.api.routes.stations import router as stations_router
+from app.api.routes.segments import router as segments_router
+from app.api.routes.timetable import router as timetable_router
+from app.api.routes.scenarios import router as scenarios_router
 
 # Load environment variables
 load_dotenv()
 
-# Create database tables
-models.Base.metadata.create_all(bind=engine)
+## No SQLAlchemy table creation needed; using MongoDB
 
 # Initialize FastAPI app
 app = FastAPI(
@@ -43,11 +40,11 @@ app.add_middleware(
 )
 
 # Include routers
-app.include_router(auth.router, prefix="/api/auth", tags=["Authentication"])
-app.include_router(users.router, prefix="/api/users", tags=["Users"])
-app.include_router(trains.router, prefix="/api/trains", tags=["Trains"])
-app.include_router(schedules.router, prefix="/api/schedules", tags=["Schedules"])
-app.include_router(analytics.router, prefix="/api/analytics", tags=["Analytics"])
+app.include_router(trains_router, prefix="/api/trains", tags=["Trains"])
+app.include_router(stations_router, prefix="/api/stations", tags=["Stations"])
+app.include_router(segments_router, prefix="/api/segments", tags=["Segments"])
+app.include_router(timetable_router, prefix="/api/timetable", tags=["Timetable"])
+app.include_router(scenarios_router, prefix="/api/scenarios", tags=["Scenarios"])
 
 # Health check endpoint
 @app.get("/health", tags=["Health"])
