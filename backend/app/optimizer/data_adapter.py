@@ -45,6 +45,17 @@ def load_from_mongo(mongo_uri=None, dbname=None, start: Optional[datetime] = Non
 
     trains_coll = list(db.trains.find({}))
     stations_coll = {s['_id']: s for s in db.stations.find({})}
+    # Normalize platform docs to have 'platform_id'
+    for sid, sdoc in stations_coll.items():
+        plats = []
+        for p in sdoc.get('platforms', []):
+            pid = p.get('platform_id') or p.get('_id')
+            if pid is None:
+                continue
+            q = dict(p)
+            q['platform_id'] = pid
+            plats.append(q)
+        sdoc['platforms'] = plats
     segments_coll = {seg['_id']: seg for seg in db.segments.find({})}
     # Apply time window filter to train events if provided
     ev_query = {}
@@ -81,8 +92,12 @@ def load_from_mongo(mongo_uri=None, dbname=None, start: Optional[datetime] = Non
     def to_minutes(dt):
         return int(math.floor((dt - origin).total_seconds() / 60.0))
 
-    # Map train_id -> train doc
-    trains_map = {t['train_id']: t for t in trains_coll}
+    # Map train_id -> train doc (support both schemas: _id or train_id)
+    trains_map = {}
+    for t in trains_coll:
+        key = t.get('train_id') or t.get('_id')
+        if key:
+            trains_map[key] = t
 
     # Group events by train and sort by scheduled_time
     trains_out = []
@@ -151,7 +166,8 @@ def load_scenario_data(
     
     # Get trains in this scenario
     train_ids = scenario.get('trains', [])
-    trains_coll = list(db.trains.find({"train_id": {"$in": train_ids}}))
+    # Trains collection uses _id as identifier in seed data
+    trains_coll = list(db.trains.find({"_id": {"$in": train_ids}}))
     
     # Get segments in this scenario
     segment_ids = scenario.get('segments', [])
@@ -163,6 +179,17 @@ def load_scenario_data(
         station_ids.add(seg.get('from'))
         station_ids.add(seg.get('to'))
     stations_coll = {s['_id']: s for s in db.stations.find({"_id": {"$in": list(station_ids)}})}
+    # Normalize platform docs to have 'platform_id'
+    for sid, sdoc in stations_coll.items():
+        plats = []
+        for p in sdoc.get('platforms', []):
+            pid = p.get('platform_id') or p.get('_id')
+            if pid is None:
+                continue
+            q = dict(p)
+            q['platform_id'] = pid
+            plats.append(q)
+        sdoc['platforms'] = plats
     
     # Get train events for these trains
     ev_query = {"train_id": {"$in": train_ids}}
@@ -174,9 +201,20 @@ def load_scenario_data(
         ev_query["scheduled_time"] = {"$lte": end}
     train_events = list(db.train_events.find(ev_query))
     
-    # Get constraints of types in scenario's constraints list
-    constraint_types = scenario.get('constraints', [])
-    constraints = list(db.constraints.find({"type": {"$in": constraint_types}}))
+    # Get constraints referenced by scenario. Seed stores ObjectIds; if strings, treat as types.
+    constraint_refs = scenario.get('constraints', [])
+    constraints = []
+    if constraint_refs:
+        # If any ref looks like an ObjectId (has attribute 'binary' or is not str), query by _id
+        try:
+            # simple heuristic: if not all are strings, assume _id list
+            if not all(isinstance(x, str) for x in constraint_refs):
+                constraints = list(db.constraints.find({"_id": {"$in": constraint_refs}}))
+            else:
+                constraints = list(db.constraints.find({"type": {"$in": constraint_refs}}))
+        except Exception:
+            # fallback to empty on error
+            constraints = []
     
     # Get platform occupancy for these trains
     occ_query = {"train_id": {"$in": train_ids}}
@@ -201,8 +239,12 @@ def load_scenario_data(
     def to_minutes(dt):
         return int(math.floor((dt - origin).total_seconds() / 60.0))
 
-    # Map train_id -> train doc
-    trains_map = {t['train_id']: t for t in trains_coll}
+    # Map train_id -> train doc (support both schemas: _id or train_id)
+    trains_map = {}
+    for t in trains_coll:
+        key = t.get('train_id') or t.get('_id')
+        if key:
+            trains_map[key] = t
 
     # Group events by train and sort by scheduled_time
     trains_out = []

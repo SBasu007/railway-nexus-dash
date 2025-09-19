@@ -6,12 +6,13 @@ import os
 from dotenv import load_dotenv
 import logging
 
-# Load .env
+# Load .env from project root if present
 load_dotenv()
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("railway-nexus")
+from app.core.config import settings, resolved_env_summary
 
 app = FastAPI(title="Railway Nexus Dashboard API", version="0.1.0")
 
@@ -60,6 +61,7 @@ from app.db.mongodb import connect_to_mongo, close_mongo_connection
 
 @app.on_event("startup")
 async def on_startup():
+    logger.info("Starting service — env: %s", resolved_env_summary())
     logger.info("Starting service — connecting to MongoDB...")
     await connect_to_mongo()
     logger.info("Startup finished.")

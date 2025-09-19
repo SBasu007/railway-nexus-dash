@@ -1,6 +1,8 @@
 from pydantic_settings import BaseSettings
 from pydantic import Field, AliasChoices
 from typing import Optional
+import os
+from pathlib import Path
 
 
 class Settings(BaseSettings):
@@ -21,12 +23,13 @@ class Settings(BaseSettings):
 
     # CORS settings
     CORS_ORIGINS: str = "*"
-
-    # pydantic-settings v2 style
-    model_config = {
-        "env_file": ".env",
-        "env_file_encoding": "utf-8",
-    }
+    
+    class Config:
+        env_file = ".env"
 
 
 settings = Settings()
+
+def resolved_env_summary() -> str:
+    """Return a small summary string of critical envs for logs."""
+    return f"MONGO_URI={settings.MONGO_URI} MONGO_DB={settings.MONGO_DB}"

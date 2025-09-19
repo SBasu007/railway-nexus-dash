@@ -35,7 +35,10 @@ async def connect_to_mongo():
         return
 
     try:
+        logger.info("MongoDB connect params: uri=%s db=%s", settings.MONGO_URI, settings.MONGO_DB)
         motor_client = AsyncIOMotorClient(settings.MONGO_URI)
+        # Ping to ensure connectivity early
+        await motor_client.admin.command('ping')
         db = motor_client[settings.MONGO_DB]
 
         # collections
@@ -48,9 +51,9 @@ async def connect_to_mongo():
         train_events_collection = db.train_events
         platform_occupancy_collection = db.platform_occupancy
 
-        logger.info("Connected to MongoDB (async motor)")
+        logger.info("Connected to MongoDB (async motor) — db=%s", settings.MONGO_DB)
     except Exception as e:
-        logger.exception("Failed to connect to MongoDB: %s", e)
+        logger.exception("Failed to connect to MongoDB (uri=%s db=%s): %s", settings.MONGO_URI, settings.MONGO_DB, e)
         raise
 
 async def close_mongo_connection():
@@ -69,6 +72,7 @@ def get_sync_client():
     """
     global pymongo_client
     if not pymongo_client:
+        logger.info("Initializing PyMongo client uri=%s", settings.MONGO_URI)
         pymongo_client = MongoClient(settings.MONGO_URI)
     return pymongo_client
 
