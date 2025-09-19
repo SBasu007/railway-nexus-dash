@@ -73,7 +73,7 @@ async def run_scenario(
 
     optimizer = TrainDispatchOptimizer(data)
     optimizer.build_model()
-    feasible = optimizer.solve_model(time_limit=10)
+    feasible = optimizer.solve_model(time_limit=300)
     if not feasible:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="No feasible solution found")
 

@@ -1,4 +1,5 @@
 from pydantic_settings import BaseSettings
+from pydantic import Field, AliasChoices
 from typing import Optional
 
 
@@ -7,16 +8,25 @@ class Settings(BaseSettings):
     APP_NAME: str = "Railway Nexus API"
     APP_VERSION: str = "0.1.0"
     APP_DESCRIPTION: str = "API for Railway Nexus Dashboard"
-    
-    # MongoDB settings
-    MONGO_URI: str = "mongodb://localhost:27017"
-    MONGO_DB: str = "railwayDB"
-    
+
+    # MongoDB settings — support both MONGO_* and legacy MONGODB_* env vars
+    MONGO_URI: str = Field(
+        default="mongodb://localhost:27017",
+        validation_alias=AliasChoices("MONGO_URI", "MONGODB_URI"),
+    )
+    MONGO_DB: str = Field(
+        default="railwayDB",
+        validation_alias=AliasChoices("MONGO_DB", "MONGODB_DB"),
+    )
+
     # CORS settings
     CORS_ORIGINS: str = "*"
-    
-    class Config:
-        env_file = ".env"
+
+    # pydantic-settings v2 style
+    model_config = {
+        "env_file": ".env",
+        "env_file_encoding": "utf-8",
+    }
 
 
 settings = Settings()

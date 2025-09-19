@@ -147,12 +147,56 @@ Run optimizer
 
 ## Running locally
 
-- Python: Use the project venv and install requirements
-- Server:
+Prereqs
+- Python 3.10+ recommended (3.11+ works)
+- MongoDB running locally or accessible via URI
+
+1) Create and activate a virtual environment
+
+Windows (bash):
 ```
-./.venv/bin/uvicorn --app-dir backend app.main:app --host 0.0.0.0 --port 8010
+cd backend
+python -m venv .venv
+source .venv/Scripts/activate
 ```
-- Seed DB (Mongo running locally):
+
+macOS/Linux:
+```
+cd backend
+python3 -m venv .venv
+source .venv/bin/activate
+```
+
+2) Install dependencies
+```
+pip install -r requirements.txt
+```
+
+3) Configure environment
+
+- Copy `.env.example` to `.env` and adjust values.
+- By default, the app reads `MONGO_URI` and `MONGO_DB` via pydantic settings (`app/core/config.py`).
+- Example `.env`:
+```
+MONGO_URI=mongodb://localhost:27017
+MONGO_DB=railwayDB
+```
+
+4) Run the API server
+
+Option A — uvicorn module (recommended for dev):
+```
+uvicorn app.main:app --host 0.0.0.0 --port 8010 --reload
+```
+
+Option B — python entrypoint (reads PORT from env if set):
+```
+python -m app.main
+```
+
+OpenAPI/Swagger UI is at `http://localhost:8010/docs`.
+
+5) Seed DB (optional; with Mongo running)
 ```
 cd backend
 mongosh "mongodb://localhost:27017/railwayDB" db/setup.js

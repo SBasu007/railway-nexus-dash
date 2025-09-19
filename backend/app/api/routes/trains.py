@@ -45,7 +45,7 @@ async def get_train(train_id: str):
 async def create_train(train: Train):
     """Create a new train"""
     # Check if train with this ID already exists
-    existing = await mongo.trains_collection.find_one({"$or": [{"train_id": train.train_id}, {"_id": train.train_id}]})
+    existing = await mongo.trains_collection.find_one({"$or": [{"train_id": train.train_id}]})
     if existing:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -54,7 +54,7 @@ async def create_train(train: Train):
     
     train_dict = train.model_dump()
     # set _id to train_id for canonical identity
-    train_dict.setdefault("_id", train.train_id)
+    # train_dict.setdefault("_id", train.train_id)
     result = await mongo.trains_collection.insert_one(train_dict)
     
     # Return the created train with ID
